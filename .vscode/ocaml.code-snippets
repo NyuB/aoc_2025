@@ -1,0 +1,62 @@
+{
+	"Deriving sexp": {
+		"body": "[@@deriving ${1:sexp}]$0",
+		"description": "deriving attribute",
+		"prefix": "derv",
+		"scope": "ocaml"
+	},
+	"Dune library": {
+		"body": "(library (name $1) (modules $1) (libraries $0))",
+		"prefix": "lib",
+		"scope": "dune"
+	},
+	"Dune expect-test": {
+		"body": "(library (name $1_inline_tests) (modules $1_inline_tests) (libraries $1) (inline_tests) (preprocess (pps ppx_expect)))",
+		"prefix": "exptst",
+		"scope": "dune"
+	},
+	"Expect statement": {
+		"body": "[%expect {|${1:?}|}];$0",
+		"description": "Expect statement",
+		"prefix": "expect",
+		"scope": "ocaml"
+	},
+	"Expect test": {
+		"body": [
+			"let%expect_test \"${1:_}\" = $0"
+		],
+		"description": "Declare an expect_test",
+		"prefix": "expect_test",
+		"scope": "ocaml"
+	},
+	"Loop": {
+		"body": [
+			"for ${1:i} = 0 to ${2:${3:size} - 1} do",
+			"\t${0:()}",
+			"done",
+		],
+		"description": "for loop",
+		"prefix": "fori",
+		"scope": "ocaml"
+	},
+	"Printf.sprintf": {
+		"body": [
+			"(Printf.sprintf ${1:${TM_SELECTED_TEXT:\"\"}} $0)"
+		],
+		"description": "Printf.sprintf",
+		"prefix": "sprintf",
+		"scope": "ocaml"
+	},
+	"Quoted string": {
+		"body": "{${2:}|${1:${TM_SELECTED_TEXT}}|${2}}",
+		"description": "quoted string",
+		"prefix": "qstr",
+		"scope": "ocaml"
+	},
+	"TODO": {
+		"body": "failwith \"TODO\"",
+		"description": "Raise to pass typee checking while WIPing",
+		"prefix": "todo",
+		"scope": "ocaml"
+	}
+}

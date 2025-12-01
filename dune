@@ -1,0 +1,13 @@
+(library
+ (name aoc_2025_01)
+ (modules aoc_2025_01)
+ (inline_tests
+  (deps
+   (file inputs/01.txt)))
+ (preprocess
+  (pps ppx_expect))
+ (libraries shared))
+
+(library
+ (name shared)
+ (modules shared))

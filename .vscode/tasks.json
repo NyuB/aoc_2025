@@ -1,0 +1,15 @@
+{
+    "version": "2.0.0",
+    "tasks": [
+        {
+            "label": "Promote",
+            "type": "shell",
+            "command": "make test-promote"
+        },
+        {
+            "label": "Test",
+            "type": "shell",
+            "command": "make test"
+        },
+    ]
+}
