@@ -1,2 +1,6 @@
+# dune stuff
 _build
 *.opam
+
+# ssh setup
+id_*
