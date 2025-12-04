@@ -29,5 +29,15 @@
  (libraries shared))
 
 (library
+ (name aoc_2025_04)
+ (modules aoc_2025_04)
+ (inline_tests
+  (deps
+   (file inputs/04.txt)))
+ (preprocess
+  (pps ppx_expect))
+ (libraries shared))
+
+(library
  (name shared)
  (modules shared))
