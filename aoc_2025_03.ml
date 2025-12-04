@@ -31,13 +31,15 @@ let rec best_joltage best arr n =
 let best_joltage arr n = best_joltage 0 arr n
 
 let solve_part_one lines : int =
-  let digits = List.map digits lines in
-  List.fold_left (fun total digits -> total + best_joltage digits 2) 0 digits
+  List.map digits lines
+  |> List.map (fun digits -> best_joltage digits 2)
+  |> Shared.Reduction.AddInt.reduce_list
 ;;
 
 let solve_part_two lines : int =
-  let digits = List.map digits lines in
-  List.fold_left (fun total digits -> total + best_joltage digits 12) 0 digits
+  List.map digits lines
+  |> List.map (fun digits -> best_joltage digits 12)
+  |> Shared.Reduction.AddInt.reduce_list
 ;;
 
 let%expect_test "Solution Part One" =

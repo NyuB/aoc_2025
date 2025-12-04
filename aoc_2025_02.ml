@@ -52,14 +52,14 @@ let solve_part_one line =
   String.split_on_char ',' line
   |> List.map parse_id_pair
   |> List.map (count_invalid_ids is_invalid_id)
-  |> List.fold_left Int64.add 0L
+  |> Shared.Reduction.AddInt64.reduce_list
 ;;
 
 let solve_part_two line =
   String.split_on_char ',' line
   |> List.map parse_id_pair
   |> List.map (count_invalid_ids is_invalid_id_two)
-  |> List.fold_left Int64.add 0L
+  |> Shared.Reduction.AddInt64.reduce_list
 ;;
 
 let example_input =
