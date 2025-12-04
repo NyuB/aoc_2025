@@ -1,3 +1,5 @@
+default: fmt build test
+
 test:
 	dune test
 test-promote:
