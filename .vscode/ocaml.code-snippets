@@ -5,14 +5,14 @@
 		"prefix": "derv",
 		"scope": "ocaml"
 	},
-	"Dune library": {
-		"body": "(library (name $1) (modules $1) (libraries $0))",
-		"prefix": "lib",
-		"scope": "dune"
-	},
 	"Dune expect-test": {
 		"body": "(library (name $1_inline_tests) (modules $1_inline_tests) (libraries $1) (inline_tests) (preprocess (pps ppx_expect)))",
 		"prefix": "exptst",
+		"scope": "dune"
+	},
+	"Dune library": {
+		"body": "(library (name $1) (modules $1) (libraries $0))",
+		"prefix": "lib",
 		"scope": "dune"
 	},
 	"Expect statement": {
@@ -52,6 +52,18 @@
 		"description": "quoted string",
 		"prefix": "qstr",
 		"scope": "ocaml"
+	},
+	"Solve part one": {
+		"body": [
+			"let solve_part_one _lines = 0;;",
+			"let%expect_test \"Example Part One\" =",
+			"print_endline (Printf.sprintf \"%d\" (solve_part_one (Shared.read_input_lines \"inputs/${1:00}.txt\")));",
+			" [%expect {| 0 |}]",
+			";;"
+		],
+		"description": "Part one template",
+		"scope": "ocaml",
+		"prefix": "slv1",
 	},
 	"TODO": {
 		"body": "failwith \"TODO\"",

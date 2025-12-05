@@ -39,6 +39,16 @@
  (libraries shared))
 
 (library
+ (name aoc_2025_05)
+ (modules aoc_2025_05)
+ (inline_tests
+  (deps
+   (file inputs/05.txt)))
+ (preprocess
+  (pps ppx_expect))
+ (libraries shared bignum))
+
+(library
  (name aoc_2025_06)
  (modules aoc_2025_06)
  (inline_tests
@@ -75,4 +85,5 @@
 
 (library
  (name shared)
- (modules shared))
+ (modules shared)
+ (libraries bignum))

@@ -64,6 +64,13 @@ module Reduction = struct
   module ProdInt64 = Make (Product (Int64))
   module ProdInt = Make (Product (Int))
 
+  module AddBigint = Make (struct
+      type t = Bigint.t
+
+      let combine a b = Bigint.(a + b)
+      let neutral = Bigint.zero
+    end)
+
   module MaxInt = Make (struct
       type t = Int.t
 
