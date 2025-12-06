@@ -39,5 +39,20 @@
  (libraries shared))
 
 (library
+ (name aoc_2025_06)
+ (modules aoc_2025_06)
+ (inline_tests
+  (deps
+   (file inputs/06.txt)))
+ (preprocess
+  (pps ppx_expect))
+ (libraries shared))
+
+(executable
+ (name daily_template)
+ (modules daily_template)
+ (libraries))
+
+(library
  (name shared)
  (modules shared))
