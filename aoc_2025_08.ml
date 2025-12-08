@@ -32,78 +32,88 @@ end
 
 module Point3DSet = Set.Make (Point3D)
 
-module Point3DGraph = struct
+module Point3DCircuits : sig
+  (** a graph of points connected within non-intersecting circuits *)
+  type t
+
+  (** [init points] is a graph with each point of [points] in its own lonely circuit *)
+  val init : Point3DSet.t -> t
+
+  (** [merge_circuits t a b] merge the circuits of a and b, creating a bigger circuit *)
+  val merge_circuits : t -> Point3D.t -> Point3D.t -> t
+
+  (** [cardinal t] is the number of points in the graph [t] *)
+  val cardinal : t -> int
+
+  (** [cardinal_circuit t p] is the number of points (including [p]) in the circuit of [p] *)
+  val cardinal_circuit : t -> Point3D.t -> int
+
+  (** [circuits t] is the list of all non-intersecting circuits in [t] *)
+  val circuits : t -> Point3DSet.t list
+end = struct
   module Point3DMap = Map.Make (Point3D)
 
-  type t = Point3DSet.t Point3DMap.t
+  type circuit =
+    | Circuit of Point3DSet.t
+    | Merged_with of Point3D.t
 
-  let init points =
+  type t = circuit Point3DMap.t
+
+  let init (points : Point3DSet.t) : t =
     Point3DSet.fold
-      (fun p graph -> Point3DMap.add p Point3DSet.empty graph)
+      (fun p graph -> Point3DMap.add p (Circuit (Point3DSet.singleton p)) graph)
       points
       Point3DMap.empty
   ;;
 
-  let add_connection_unidir (t : t) (a : Point3D.t) (b : Point3D.t) : t =
-    Point3DMap.update
-      a
-      (function
-        | None -> Some (Point3DSet.singleton b)
-        | Some already -> Some (Point3DSet.add b already))
-      t
+  let rec find_actual_circuit (t : t) p : Point3D.t * Point3DSet.t =
+    match Point3DMap.find p t with
+    | Circuit c -> p, c
+    | Merged_with another -> find_actual_circuit t another
   ;;
 
-  let add_connection (t : t) a b =
-    let ab = add_connection_unidir t a b in
-    add_connection_unidir ab b a
+  let merge_circuits (t : t) (a : Point3D.t) (b : Point3D.t) : t =
+    let actual_a, circuit_a = find_actual_circuit t a
+    and actual_b, circuit_b = find_actual_circuit t b in
+    if Point3D.equal actual_a actual_b
+    then t
+    else (
+      let merged = Point3DSet.union circuit_a circuit_b in
+      Point3DMap.add_seq
+        (List.to_seq [ actual_a, Circuit merged; actual_b, Merged_with actual_a ])
+        t)
   ;;
 
-  let are_connected (t : t) a b =
-    Point3DMap.find_opt a t
-    |> function
-    | None -> false
-    | Some bs -> Point3DSet.mem b bs
+  let cardinal (t : t) = Point3DMap.cardinal t
+
+  let cardinal_circuit (t : t) p =
+    let _, c = find_actual_circuit t p in
+    Point3DSet.cardinal c
   ;;
 
-  let vertices (t : t) = Point3DMap.to_seq t |> Seq.map fst |> Point3DSet.of_seq
-
-  let edges t =
-    Point3DMap.fold
-      (fun _ connections total -> total + Point3DSet.cardinal connections)
-      t
-      0
-  ;;
-
-  let pick (set : Point3DSet.t) = Point3DSet.find_first (Fun.const true) set
-
-  let rec circuit acc (t : t) start =
-    let connections =
-      Point3DMap.find start t |> Point3DSet.filter (fun p -> not @@ Point3DSet.mem p acc)
-    in
-    Point3DSet.fold
-      (fun p connections -> Point3DSet.union connections (circuit connections t p))
-      connections
-      (Point3DSet.union connections acc)
-  ;;
-
-  let circuit t p = circuit (Point3DSet.singleton p) t p
-
-  let circuits t =
-    let rec aux acc t =
-      if Point3DMap.is_empty t
-      then acc
-      else (
-        let next_circuit = circuit t (pick (vertices t)) in
-        let next_graph =
-          Point3DMap.filter (fun p _ -> not @@ Point3DSet.mem p next_circuit) t
-        in
-        aux (next_circuit :: acc) next_graph)
-    in
-    aux [] t
+  let circuits (t : t) : Point3DSet.t list =
+    Point3DMap.to_seq t
+    |> Seq.filter_map (function
+      | _, Circuit c -> Some c
+      | _ -> None)
+    |> List.of_seq
   ;;
 end
 
-let all_connections_ascending points =
+let one_on_two l =
+  let rec aux acc = function
+    | [] -> List.rev acc
+    | [ _ ] -> failwith "Invalid argument: list length is not even"
+    | a :: _ :: tail -> aux (a :: acc) tail
+  in
+  aux [] l
+;;
+
+type connection = Point3D.t * Point3D.t * int
+
+(** [all_connections_ascending points] is the list of all pairwise connections (undirected)
+sorted by ascending distance between the connection points *)
+let all_connections_ascending points : connection list =
   Point3DSet.fold
     (fun a all ->
        Point3DSet.fold
@@ -118,32 +128,80 @@ let all_connections_ascending points =
     points
     []
   |> List.sort (fun (_, _, da) (_, _, db) -> Int.compare da db)
+  (* Skip duplicates a <-> b, b <-> a which are side-by-side because we just sorted them *)
+  |> one_on_two
 ;;
 
-let rec add_n_best_connections graph n connections =
+(** [connect_n circuits n connections] is the resulting graph obtained after applying the first [n] connections in [connections] *)
+let rec connect_n (circuits : Point3DCircuits.t) n (connections : connection list)
+  : Point3DCircuits.t
+  =
   if n = 0
-  then graph
+  then circuits
   else (
     match connections with
     | [] -> failwith "Unable to add a connection"
     | (a, b, _) :: tail ->
-      if Point3DGraph.are_connected graph a b
-      then add_n_best_connections graph n tail
-      else add_n_best_connections (Point3DGraph.add_connection graph a b) (n - 1) tail)
+      connect_n (Point3DCircuits.merge_circuits circuits a b) (n - 1) tail)
+;;
+
+(** [connect_until_single_circuit circuits connections] is the last connection of [connections] necessary to fully connect [circuits] (when connnecrting [connections] in order) *)
+let rec connect_until_single_circuit
+          (circuits : Point3DCircuits.t)
+          (connections : connection list)
+  =
+  match connections with
+  | ((a, b, _) as conn) :: tail ->
+    let merged = Point3DCircuits.merge_circuits circuits a b in
+    if
+      Point3DCircuits.cardinal merged
+      = Point3DCircuits.cardinal_circuit merged a (* merge resulted in one big circuit *)
+    then conn
+    else connect_until_single_circuit merged tail
+  | _ -> failwith "Unable to add enough connections"
 ;;
 
 let solve_part_one n lines =
   let points = List.map Point3D.parse lines |> Point3DSet.of_list in
-  let graph = Point3DGraph.init points in
-  let connected = add_n_best_connections graph n (all_connections_ascending points) in
-  Point3DGraph.circuits connected
+  let graph = Point3DCircuits.init points in
+  let connected = connect_n graph n (all_connections_ascending points) in
+  Point3DCircuits.circuits connected
   |> List.map Point3DSet.cardinal
   |> List.sort (fun a b -> -Int.compare a b)
   |> List.take 3
   |> List.fold_left Int.mul 1
 ;;
 
-let solve_part_two _ = 0
+let solve_part_two lines =
+  let points = List.map Point3D.parse lines |> Point3DSet.of_list in
+  let graph = Point3DCircuits.init points in
+  let a, b, _ = connect_until_single_circuit graph (all_connections_ascending points) in
+  a.x * b.x
+;;
+
+let example_input =
+  [ "162,817,812"
+  ; "57,618,57"
+  ; "906,360,560"
+  ; "592,479,940"
+  ; "352,342,300"
+  ; "466,668,158"
+  ; "542,29,236"
+  ; "431,825,988"
+  ; "739,650,466"
+  ; "52,470,668"
+  ; "216,146,977"
+  ; "819,987,18"
+  ; "117,168,530"
+  ; "805,96,715"
+  ; "346,949,466"
+  ; "970,615,88"
+  ; "941,993,340"
+  ; "862,61,35"
+  ; "984,92,344"
+  ; "425,690,689"
+  ]
+;;
 
 let%expect_test "Solution Part One" =
   let solution = solve_part_one 1000 @@ Shared.read_input_lines "inputs/08.txt" in
@@ -152,31 +210,7 @@ let%expect_test "Solution Part One" =
 ;;
 
 let%expect_test "Example Part One" =
-  let solution =
-    solve_part_one
-      10
-      [ "162,817,812"
-      ; "57,618,57"
-      ; "906,360,560"
-      ; "592,479,940"
-      ; "352,342,300"
-      ; "466,668,158"
-      ; "542,29,236"
-      ; "431,825,988"
-      ; "739,650,466"
-      ; "52,470,668"
-      ; "216,146,977"
-      ; "819,987,18"
-      ; "117,168,530"
-      ; "805,96,715"
-      ; "346,949,466"
-      ; "970,615,88"
-      ; "941,993,340"
-      ; "862,61,35"
-      ; "984,92,344"
-      ; "425,690,689"
-      ]
-  in
+  let solution = solve_part_one 10 example_input in
   print_endline @@ Printf.sprintf "%d" solution;
   [%expect {| 40 |}]
 ;;
@@ -184,11 +218,11 @@ let%expect_test "Example Part One" =
 let%expect_test "Solution Part Two" =
   let solution = solve_part_two @@ Shared.read_input_lines "inputs/08.txt" in
   print_endline @@ Printf.sprintf "%d" solution;
-  [%expect {| 0 |}]
+  [%expect {| 7017750530 |}]
 ;;
 
 let%expect_test "Example Part Two" =
-  let solution = solve_part_two [ (* Insert example input here *) ] in
+  let solution = solve_part_two example_input in
   print_endline @@ Printf.sprintf "%d" solution;
-  [%expect {| 0 |}]
+  [%expect {| 25272 |}]
 ;;
