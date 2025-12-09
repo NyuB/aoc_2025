@@ -85,3 +85,27 @@ module Reduction = struct
       let neutral = Int64.min_int
     end)
 end
+
+module Point = struct
+  type t =
+    { i : int
+    ; j : int
+    }
+
+  let compare { i = ia; j = ja } { i = ib; j = jb } =
+    let compare_i = Int.compare ia ib in
+    if compare_i != 0 then compare_i else Int.compare ja jb
+  ;;
+
+  let show { i; j } = Printf.sprintf "(%d, %d)" i j
+  let left { i; j } = { i; j = j - 1 }
+  let right { i; j } = { i; j = j + 1 }
+  let equal a b = a.i = b.i && a.j = b.j
+  let hash a = Int.hash (a.i * 13 * a.j * 17)
+
+  let parse_xy s =
+    match String.split_on_char ',' s with
+    | [ x; y ] -> { i = int_of_string y; j = int_of_string x }
+    | _ -> failwith (Printf.sprintf "Invalid point representation %s" s)
+  ;;
+end

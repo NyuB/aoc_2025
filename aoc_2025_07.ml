@@ -1,20 +1,4 @@
-module Point = struct
-  type t =
-    { i : int
-    ; j : int
-    }
-
-  let compare { i = ia; j = ja } { i = ib; j = jb } =
-    let compare_i = Int.compare ia ib in
-    if compare_i != 0 then compare_i else Int.compare ja jb
-  ;;
-
-  let show { i; j } = Printf.sprintf "(%d, %d)" i j
-  let left { i; j } = { i; j = j - 1 }
-  let right { i; j } = { i; j = j + 1 }
-  let equal a b = a.i = b.i && a.j = b.j
-  let hash a = Int.hash (a.i * 13 * a.j * 17)
-end
+module Point = Shared.Point
 
 module Splitters : sig
   type t
