@@ -108,4 +108,10 @@ module Point = struct
     | [ x; y ] -> { i = int_of_string y; j = int_of_string x }
     | _ -> failwith (Printf.sprintf "Invalid point representation %s" s)
   ;;
+
+  let parse_ij s =
+    match String.split_on_char ',' s with
+    | [ i; j ] -> { i = int_of_string i; j = int_of_string j }
+    | _ -> failwith (Printf.sprintf "Invalid point representation %s" s)
+  ;;
 end
