@@ -88,6 +88,16 @@
   (pps ppx_expect))
  (libraries shared))
 
+(library
+ (name aoc_2025_10)
+ (modules aoc_2025_10)
+ (inline_tests
+  (deps
+   (file inputs/10.txt)))
+ (preprocess
+  (pps ppx_expect))
+ (libraries shared))
+
 (executable
  (name daily_template)
  (modules daily_template)
