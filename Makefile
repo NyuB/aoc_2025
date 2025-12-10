@@ -7,7 +7,7 @@ test-promote:
 build:
 	dune build
 fmt:
-	dune fmt
+	-dune fmt
 
 day-%:
 	dune exec ./daily_template.exe $*
