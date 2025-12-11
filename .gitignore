@@ -4,3 +4,6 @@ _build
 
 # ssh setup
 id_*
+
+# glpk sources for day 10
+glpk-5.0

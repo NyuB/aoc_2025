@@ -96,7 +96,7 @@
    (file inputs/10.txt)))
  (preprocess
   (pps ppx_expect))
- (libraries shared))
+ (libraries shared unix))
 
 (executable
  (name daily_template)
