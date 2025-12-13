@@ -180,7 +180,7 @@ let shape_size l =
 ;;
 
 let solve_part_one _ = 0
-  (* let blocks = split_on_string "" lines |> List.rev in
+(* let blocks = split_on_string "" lines |> List.rev in
   let areas = List.hd blocks
   and shapes = List.tl blocks |> List.map parse_shape in
   List.fold_left
@@ -204,7 +204,6 @@ let solve_part_one _ = 0
     (0, 0)
     areas
   |> fst *)
-;;
 
 let solve_part_two _ = 0
 
