@@ -19,8 +19,7 @@
  (name aoc_2025)
  (synopsis "A short synopsis")
  (description "A longer description")
- (depends ocaml dune ppx_expect)
- (allow_empty)
+ (depends ocaml dune bigint unix ppx_expect)
  (tags
   ("add topics" "to describe" your project)))
 

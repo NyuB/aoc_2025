@@ -119,6 +119,25 @@
  (libraries shared))
 
 (executable
+ (public_name aoc_2025)
+ (name aoc_2025)
+ (modules aoc_2025)
+ (libraries
+  aoc_2025_01
+  aoc_2025_02
+  aoc_2025_03
+  aoc_2025_04
+  aoc_2025_05
+  aoc_2025_06
+  aoc_2025_07
+  aoc_2025_08
+  aoc_2025_09
+  aoc_2025_10
+  aoc_2025_11
+  aoc_2025_12
+  shared))
+
+(executable
  (name daily_template)
  (modules daily_template)
  (libraries))
@@ -127,3 +146,8 @@
  (name shared)
  (modules shared)
  (libraries bignum))
+
+(cram
+ (deps
+  %{bin:aoc_2025}
+  (source_tree inputs)))
