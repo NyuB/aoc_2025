@@ -2,8 +2,10 @@ module StringMap = Map.Make (String)
 
 type leds = string
 
+let without_bracket s = String.sub s 1 (String.length s - 2)
+
 module Button = struct
-  type t = int array
+  type t = int iarray
 
   let flip = function
     | '#' -> '.'
@@ -11,10 +13,16 @@ module Button = struct
     | c -> failwith (Printf.sprintf "Invalid state character %c" c)
   ;;
 
-  let apply_leds button leds =
+  let apply_leds (button : t) leds =
     let res = Bytes.init (String.length leds) (String.get leds) in
-    Array.iter (fun i -> Bytes.set res i (flip (Bytes.get res i))) button;
+    Iarray.iter (fun i -> Bytes.set res i (flip (Bytes.get res i))) button;
     Bytes.to_string res
+  ;;
+
+  let parse (s : string) : t =
+    String.split_on_char ',' (without_bracket s)
+    |> List.map int_of_string
+    |> Iarray.of_list
   ;;
 end
 
@@ -85,19 +93,28 @@ end
 
 module Solver_Two = struct
   (** variables' coefficients and sum *)
-  type equation = int array * int
+  type equation = int iarray * int
 
   type t =
     { nb_variables : int
-    ; equations : equation array
+    ; equations : equation iarray
     }
+
+  let equations_left_side_of_buttons nb_equations nb_variables buttons =
+    let equations = Array.init nb_equations (fun _ -> Array.make nb_variables 0) in
+    List.iteri (fun bi b -> Iarray.iter (fun c -> equations.(c).(bi) <- 1) b) buttons;
+    Array.map Iarray.of_array equations |> Iarray.of_array
+  ;;
 
   let of_buttons_and_joltages (buttons : Button.t list) joltages =
     let nb_variables = List.length buttons in
-    let nb_equations = Array.length joltages in
-    let equations = Array.init nb_equations (fun _ -> Array.make nb_variables 0) in
-    List.iteri (fun bi b -> Array.iter (fun c -> equations.(c).(bi) <- 1) b) buttons;
-    { nb_variables; equations = Array.combine equations joltages }
+    let nb_equations = Iarray.length joltages in
+    { nb_variables
+    ; equations =
+        Iarray.combine
+          (equations_left_side_of_buttons nb_equations nb_variables buttons)
+          joltages
+    }
   ;;
 
   module MathProg = struct
@@ -118,8 +135,8 @@ module Solver_Two = struct
 
     let equation_constraint (equation_index : int) ((vars, eq) : equation) : string =
       let vars =
-        Array.mapi (fun i coeff -> coeff, var_coeff_in_sum i coeff) vars
-        |> Array.to_list
+        Iarray.mapi (fun i coeff -> coeff, var_coeff_in_sum i coeff) vars
+        |> Iarray.to_list
         |> List.filter_map (fun (coeff, v) -> if coeff = 0 then None else Some v)
       in
       let sum = String.concat " + " vars in
@@ -140,7 +157,7 @@ module Solver_Two = struct
       [ "# start of program"; "# minimizes the value: sum" ]
       @ List.init t.nb_variables var_declaration
       @ [ minimize t.nb_variables ]
-      @ (Array.mapi equation_constraint t.equations |> Array.to_list)
+      @ (Iarray.mapi equation_constraint t.equations |> Iarray.to_list)
       @ List.init t.nb_variables positive_constraint
       @ [ "solve;"; "printf \"%d\\n\",sum;"; "# end of program"; "" ]
       |> String.concat "\n"
@@ -181,26 +198,19 @@ module Solver_Two = struct
   end
 end
 
-let without_bracket s = String.sub s 1 (String.length s - 2)
 let parse_flip_target target = without_bracket target
-
-let parse_button button : Button.t =
-  String.split_on_char ',' (without_bracket button)
-  |> List.map int_of_string
-  |> Array.of_list
-;;
 
 let parse_joltages joltages =
   String.split_on_char ',' (without_bracket joltages)
   |> List.map int_of_string
-  |> Array.of_list
+  |> Iarray.of_list
 ;;
 
 let parse_buttons_and_joltages buttons_and_joltages =
   match List.rev buttons_and_joltages with
   | [] -> failwith "Needs at least joltages"
   | joltages :: buttons ->
-    List.map parse_button buttons |> List.rev, parse_joltages joltages
+    List.map Button.parse buttons |> List.rev, parse_joltages joltages
 ;;
 
 let parse_one line =
@@ -211,7 +221,7 @@ let parse_one line =
   | _ -> failwith (Printf.sprintf "Invalid line '%s'" line)
 ;;
 
-let parse_two line : Button.t list * int array =
+let parse_two line : Button.t list * int iarray =
   match String.split_on_char ' ' line with
   | _ :: buttons_and_joltages ->
     let buttons, joltages = parse_buttons_and_joltages buttons_and_joltages in
