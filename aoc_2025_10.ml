@@ -196,6 +196,254 @@ module Solver_Two = struct
       run_glpsol model_file output_file
     ;;
   end
+
+  (** A simplex implementation handling only equality constraints and 1/0 ponderations *)
+  module Simplex = struct
+    type optimization =
+      | Maximize
+      | Minimize
+
+    let cost_coeff = function
+      | Maximize -> -1
+      | Minimize -> 1
+    ;;
+
+    let ( .%() ) arr i = Iarray.get arr i
+
+    type tableau = int array array
+    type problem = t (* Avoid shadowing *)
+
+    type t =
+      { rows : int
+      ; columns : int
+      ; tableau : tableau
+      }
+
+    let nb_equations t = t.rows - 1
+    let nb_artificals t = nb_equations t
+    let nb_variables t = t.columns - 2 - nb_artificals t
+
+    let rec is_basic t one i j =
+      if i >= t.rows
+      then one
+      else if t.tableau.(i).(j) = 1
+      then if Option.is_some one then None else is_basic t (Some i) (i + 1) j
+      else if t.tableau.(i).(j) != 0
+      then None
+      else is_basic t one (i + 1) j
+    ;;
+
+    let is_basic t j = is_basic t None 0 j
+
+    let rec find_negativest_column t j best =
+      if j >= t.columns
+      then best
+      else (
+        let loop = find_negativest_column t (j + 1) in
+        let value = t.tableau.(t.rows - 1).(j) in
+        if value < 0
+        then (
+          match best with
+          | None -> loop (Some (j, value))
+          | Some (_, best_value) ->
+            if best_value > value then loop (Some (j, value)) else loop best)
+        else loop best)
+    ;;
+
+    let find_negativest_column t = find_negativest_column t 0 None |> Option.map fst
+    let rhs t i = t.tableau.(i).(t.columns - 1)
+
+    let normalize_row t i j =
+      let divider = t.tableau.(i).(j) in
+      for j = 0 to t.columns - 1 do
+        t.tableau.(i).(j) <- t.tableau.(i).(j) / divider
+      done
+    ;;
+
+    let substract_row t ~by i =
+      let by_i, by_j = by in
+      if i = by_i
+      then ()
+      else (
+        let factor = t.tableau.(i).(by_j) in
+        for j = 0 to t.columns - 1 do
+          t.tableau.(i).(j) <- t.tableau.(i).(j) - (t.tableau.(by_i).(j) * factor)
+        done)
+    ;;
+
+    let rec find_smallest_ratio t j i best =
+      if i >= t.rows - 1
+      then best
+      else (
+        let loop = find_smallest_ratio t j (i + 1) in
+        let xi = t.tableau.(i).(j)
+        and bi = rhs t i in
+        if xi <= 0
+        then loop best
+        else (
+          let ratio = bi / xi in
+          match best with
+          | None -> loop (Some (i, ratio))
+          | Some (_, best_value) ->
+            if ratio < best_value then loop (Some (i, ratio)) else loop best))
+    ;;
+
+    let find_smallest_ratio t j = find_smallest_ratio t j 0 None |> Option.map fst
+
+    let find_pivot t =
+      let j = find_negativest_column t |> Option.get in
+      let i = find_smallest_ratio t j |> Option.get in
+      i, j
+    ;;
+
+    let rec find_basic_artificial t j =
+      if j >= t.columns - 2
+      then None
+      else (
+        match is_basic t j with
+        | None -> find_basic_artificial t (j + 1)
+        | Some i -> Some (i, j))
+    ;;
+
+    let find_basic_artificial t = find_basic_artificial t (nb_variables t)
+
+    let rec find_non_basic_variable t i j =
+      if j >= nb_variables t
+      then None
+      else if t.tableau.(i).(j) = 0 || Option.is_some (is_basic t j)
+      then find_non_basic_variable t i (j + 1)
+      else Some j
+    ;;
+
+    let find_non_basic_variable t i = find_non_basic_variable t i 0
+
+    let step_pivot t ((pivot_i, pivot_j) as pivot) =
+      normalize_row t pivot_i pivot_j;
+      for i = 0 to t.rows - 1 do
+        substract_row t ~by:pivot i
+      done
+    ;;
+
+    let should_eliminate_artificial t =
+      match find_basic_artificial t with
+      | Some (ai, _) -> Option.is_some (find_non_basic_variable t ai)
+      | None -> false
+    ;;
+
+    let is_solved t =
+      Option.is_none (find_negativest_column t) && (not @@ should_eliminate_artificial t)
+    ;;
+
+    let step_artificial t ai =
+      match find_non_basic_variable t ai with
+      | Some xj -> step_pivot t (ai, xj)
+      | None -> ()
+    ;;
+
+    let step t =
+      if Option.is_some (find_negativest_column t)
+      then step_pivot t (find_pivot t)
+      else (
+        match find_basic_artificial t with
+        | Some (ai, _) -> step_artificial t ai
+        | None -> ())
+    ;;
+
+    let init problem optimization =
+      let columns =
+        problem.nb_variables
+        + Iarray.length problem.equations (* one artificial variable per equation *)
+        + 1 (* objective *)
+        + 1 (* coefficient *)
+      in
+      let rows =
+        Iarray.length problem.equations + 1
+        (* objective row *)
+      in
+      let tableau =
+        Array.init_matrix rows columns (fun i j ->
+          if i = rows - 1
+          then
+            if j < problem.nb_variables
+            then cost_coeff optimization
+            else if j = columns - 2
+            then 1
+            else 0
+          else if j = columns - 1
+          then snd problem.equations.%(i)
+          else if j = columns - 2
+          then 0
+          else if j >= problem.nb_variables
+          then if i = j - problem.nb_variables then 1 else 0
+          else (fst problem.equations.%(i)).%(j))
+      in
+      { rows; columns; tableau }
+    ;;
+
+    let rec repeat (i : int) (f : int -> unit) (nb : int) : unit =
+      if nb <= 0 then () else f i;
+      repeat (i + 1) f (nb - 1)
+    ;;
+
+    let repeat (f : int -> unit) (nb : int) : unit = repeat 0 f nb
+    let var_name id = Printf.sprintf "x%d" (id + 1)
+    let artificial_var_name id = Printf.sprintf "a%d" (id + 1)
+
+    let format_header t j =
+      if j < nb_variables t
+      then Printf.sprintf " %s" (var_name j)
+      else if j < t.columns - 2
+      then Printf.sprintf " %s" (artificial_var_name (j - nb_variables t))
+      else if j = t.columns - 2
+      then "    z"
+      else "  b"
+    ;;
+
+    let format_int t j n =
+      let spacing = if j = t.columns - 2 then "  " else "" in
+      Printf.sprintf "%s%3d" spacing n
+    ;;
+
+    let row_separator t = String.make ((t.columns * 4) + 2) '-'
+
+    let print t =
+      List.init t.columns (format_header t) |> String.concat "|" |> print_endline;
+      print_endline @@ row_separator t;
+      Array.iter
+        (fun row ->
+           Array.mapi (format_int t) row
+           |> Array.to_list
+           |> String.concat "|"
+           |> print_endline;
+           print_endline @@ row_separator t)
+        t.tableau
+    ;;
+
+    let rec step_until_solved simplex =
+      if is_solved simplex
+      then simplex.tableau.(simplex.rows - 1).(simplex.columns - 1)
+      else (
+        step simplex;
+        step_until_solved simplex)
+    ;;
+
+    let dual (problem : problem) =
+      let nb_var = Iarray.length problem.equations in
+      let nb_equations = problem.nb_variables in
+      let equations =
+        Iarray.init nb_equations (fun i ->
+          Iarray.init nb_var (fun j -> (fst problem.equations.%(j)).%(i)), 1)
+      in
+      let result = init { equations; nb_variables = nb_var } Minimize in
+      for j = 0 to nb_var - 1 do
+        result.tableau.(result.rows - 1).(j) <- -snd problem.equations.%(j)
+      done;
+      result
+    ;;
+
+    let maximize problem = step_until_solved (init problem Maximize)
+    let minimize problem = step_until_solved (dual problem)
+  end
 end
 
 let parse_flip_target target = without_bracket target
@@ -247,6 +495,13 @@ let solve_part_two lines =
   |> Shared.Reduction.AddInt.reduce_list
 ;;
 
+let solve_part_two_simplex lines =
+  List.map parse_two lines
+  |> List.map (fun (buttons, joltages) ->
+    Solver_Two.Simplex.minimize (Solver_Two.of_buttons_and_joltages buttons joltages))
+  |> Shared.Reduction.AddInt.reduce_list
+;;
+
 let example_input =
   [ "[.##.] (3) (1,3) (2) (2,3) (0,2) (0,1) {3,5,4,7}"
   ; "[...#.] (0,2,3,4) (2,3) (0,4) (0,1,2) (1,2,3,4) {7,5,12,7,2}"
@@ -276,6 +531,18 @@ let%expect_test "Example Part Two" =
   let solution = solve_part_two example_input in
   print_endline @@ Printf.sprintf "%d" solution;
   [%expect {| 33 |}]
+;;
+
+let%expect_test "Example Part Two" =
+  let solution =
+    solve_part_two_simplex
+      [ "[.##.] (3) (1,3) (2) (2,3) (0,2) (0,1) {3,5,4,7}"
+      ; "[...#.] (0,2,3,4) (2,3) (0,4) (0,1,2) (1,2,3,4) {7,5,12,7,2}"
+        (* ; "[.###.#] (0,1,2,3,4) (0,3,4) (0,1,2,4,5) (1,2) {10,11,11,5,10,5}" *)
+      ]
+  in
+  print_endline @@ Printf.sprintf "%d" solution;
+  [%expect {| 22 |}]
 ;;
 
 let%expect_test "Equation" =
@@ -349,4 +616,320 @@ let%expect_test "Equation" =
     printf "%d\n",sum;
     # end of program
     |}]
+;;
+
+let%expect_test "Simplex" =
+  let module Simplex = Solver_Two.Simplex in
+  let problem = parse_equation "[.##.] (3) (1,3) (2) (2,3) (0,2) (0,1) {3,5,4,7}" in
+  let simplex = Simplex.init problem Maximize in
+  Simplex.print simplex;
+  [%expect
+    {|
+     x1| x2| x3| x4| x5| x6| a1| a2| a3| a4|    z|  b
+    --------------------------------------------------
+      0|  0|  0|  0|  1|  1|  1|  0|  0|  0|    0|  3
+    --------------------------------------------------
+      0|  1|  0|  0|  0|  1|  0|  1|  0|  0|    0|  5
+    --------------------------------------------------
+      0|  0|  1|  1|  1|  0|  0|  0|  1|  0|    0|  4
+    --------------------------------------------------
+      1|  1|  0|  1|  0|  0|  0|  0|  0|  1|    0|  7
+    --------------------------------------------------
+     -1| -1| -1| -1| -1| -1|  0|  0|  0|  0|    1|  0
+    --------------------------------------------------
+    |}];
+  let i, j = Simplex.find_pivot simplex in
+  print_endline (Printf.sprintf "Next pivot: %d, %d" i j);
+  [%expect {| Next pivot: 3, 0 |}];
+  Simplex.step simplex;
+  Simplex.print simplex;
+  [%expect
+    {|
+     x1| x2| x3| x4| x5| x6| a1| a2| a3| a4|    z|  b
+    --------------------------------------------------
+      0|  0|  0|  0|  1|  1|  1|  0|  0|  0|    0|  3
+    --------------------------------------------------
+      0|  1|  0|  0|  0|  1|  0|  1|  0|  0|    0|  5
+    --------------------------------------------------
+      0|  0|  1|  1|  1|  0|  0|  0|  1|  0|    0|  4
+    --------------------------------------------------
+      1|  1|  0|  1|  0|  0|  0|  0|  0|  1|    0|  7
+    --------------------------------------------------
+      0|  0| -1|  0| -1| -1|  0|  0|  0|  1|    1|  7
+    --------------------------------------------------
+    |}];
+  Simplex.step simplex;
+  Simplex.print simplex;
+  [%expect
+    {|
+     x1| x2| x3| x4| x5| x6| a1| a2| a3| a4|    z|  b
+    --------------------------------------------------
+      0|  0|  0|  0|  1|  1|  1|  0|  0|  0|    0|  3
+    --------------------------------------------------
+      0|  1|  0|  0|  0|  1|  0|  1|  0|  0|    0|  5
+    --------------------------------------------------
+      0|  0|  1|  1|  1|  0|  0|  0|  1|  0|    0|  4
+    --------------------------------------------------
+      1|  1|  0|  1|  0|  0|  0|  0|  0|  1|    0|  7
+    --------------------------------------------------
+      0|  0|  0|  1|  0| -1|  0|  0|  1|  1|    1| 11
+    --------------------------------------------------
+    |}];
+  Simplex.step simplex;
+  Simplex.print simplex;
+  [%expect
+    {|
+     x1| x2| x3| x4| x5| x6| a1| a2| a3| a4|    z|  b
+    --------------------------------------------------
+      0|  0|  0|  0|  1|  1|  1|  0|  0|  0|    0|  3
+    --------------------------------------------------
+      0|  1|  0|  0| -1|  0| -1|  1|  0|  0|    0|  2
+    --------------------------------------------------
+      0|  0|  1|  1|  1|  0|  0|  0|  1|  0|    0|  4
+    --------------------------------------------------
+      1|  1|  0|  1|  0|  0|  0|  0|  0|  1|    0|  7
+    --------------------------------------------------
+      0|  0|  0|  1|  1|  0|  1|  0|  1|  1|    1| 14
+    --------------------------------------------------
+    |}];
+  Simplex.step simplex;
+  Simplex.print simplex;
+  [%expect
+    {|
+     x1| x2| x3| x4| x5| x6| a1| a2| a3| a4|    z|  b
+    --------------------------------------------------
+      0|  0|  0|  0|  1|  1|  1|  0|  0|  0|    0|  3
+    --------------------------------------------------
+      0|  1|  0|  0| -1|  0| -1|  1|  0|  0|    0|  2
+    --------------------------------------------------
+      0|  0|  1|  1|  1|  0|  0|  0|  1|  0|    0|  4
+    --------------------------------------------------
+      1|  0|  0|  1|  1|  0|  1| -1|  0|  1|    0|  5
+    --------------------------------------------------
+      0|  0|  0|  1|  1|  0|  1|  0|  1|  1|    1| 14
+    --------------------------------------------------
+    |}];
+  print_endline (Printf.sprintf "%b" (Simplex.is_solved simplex));
+  [%expect {| true |}];
+  print_endline (Printf.sprintf "max = %d" (Simplex.maximize problem));
+  [%expect {| max = 14 |}];
+  let dual = Simplex.dual problem in
+  Simplex.print (Simplex.init problem Maximize);
+  print_endline ">>>";
+  Simplex.print dual;
+  [%expect
+    {|
+     x1| x2| x3| x4| x5| x6| a1| a2| a3| a4|    z|  b
+    --------------------------------------------------
+      0|  0|  0|  0|  1|  1|  1|  0|  0|  0|    0|  3
+    --------------------------------------------------
+      0|  1|  0|  0|  0|  1|  0|  1|  0|  0|    0|  5
+    --------------------------------------------------
+      0|  0|  1|  1|  1|  0|  0|  0|  1|  0|    0|  4
+    --------------------------------------------------
+      1|  1|  0|  1|  0|  0|  0|  0|  0|  1|    0|  7
+    --------------------------------------------------
+     -1| -1| -1| -1| -1| -1|  0|  0|  0|  0|    1|  0
+    --------------------------------------------------
+    >>>
+     x1| x2| x3| x4| a1| a2| a3| a4| a5| a6|    z|  b
+    --------------------------------------------------
+      0|  0|  0|  1|  1|  0|  0|  0|  0|  0|    0|  1
+    --------------------------------------------------
+      0|  1|  0|  1|  0|  1|  0|  0|  0|  0|    0|  1
+    --------------------------------------------------
+      0|  0|  1|  0|  0|  0|  1|  0|  0|  0|    0|  1
+    --------------------------------------------------
+      0|  0|  1|  1|  0|  0|  0|  1|  0|  0|    0|  1
+    --------------------------------------------------
+      1|  0|  1|  0|  0|  0|  0|  0|  1|  0|    0|  1
+    --------------------------------------------------
+      1|  1|  0|  0|  0|  0|  0|  0|  0|  1|    0|  1
+    --------------------------------------------------
+     -3| -5| -4| -7|  0|  0|  0|  0|  0|  0|    1|  0
+    --------------------------------------------------
+    |}];
+  Simplex.step dual;
+  Simplex.print dual;
+  [%expect
+    {|
+     x1| x2| x3| x4| a1| a2| a3| a4| a5| a6|    z|  b
+    --------------------------------------------------
+      0|  0|  0|  1|  1|  0|  0|  0|  0|  0|    0|  1
+    --------------------------------------------------
+      0|  1|  0|  0| -1|  1|  0|  0|  0|  0|    0|  0
+    --------------------------------------------------
+      0|  0|  1|  0|  0|  0|  1|  0|  0|  0|    0|  1
+    --------------------------------------------------
+      0|  0|  1|  0| -1|  0|  0|  1|  0|  0|    0|  0
+    --------------------------------------------------
+      1|  0|  1|  0|  0|  0|  0|  0|  1|  0|    0|  1
+    --------------------------------------------------
+      1|  1|  0|  0|  0|  0|  0|  0|  0|  1|    0|  1
+    --------------------------------------------------
+     -3| -5| -4|  0|  7|  0|  0|  0|  0|  0|    1|  7
+    --------------------------------------------------
+    |}];
+  Simplex.step dual;
+  Simplex.print dual;
+  [%expect
+    {|
+     x1| x2| x3| x4| a1| a2| a3| a4| a5| a6|    z|  b
+    --------------------------------------------------
+      0|  0|  0|  1|  1|  0|  0|  0|  0|  0|    0|  1
+    --------------------------------------------------
+      0|  1|  0|  0| -1|  1|  0|  0|  0|  0|    0|  0
+    --------------------------------------------------
+      0|  0|  1|  0|  0|  0|  1|  0|  0|  0|    0|  1
+    --------------------------------------------------
+      0|  0|  1|  0| -1|  0|  0|  1|  0|  0|    0|  0
+    --------------------------------------------------
+      1|  0|  1|  0|  0|  0|  0|  0|  1|  0|    0|  1
+    --------------------------------------------------
+      1|  0|  0|  0|  1| -1|  0|  0|  0|  1|    0|  1
+    --------------------------------------------------
+     -3|  0| -4|  0|  2|  5|  0|  0|  0|  0|    1|  7
+    --------------------------------------------------
+    |}];
+  Simplex.step dual;
+  Simplex.print dual;
+  [%expect
+    {|
+     x1| x2| x3| x4| a1| a2| a3| a4| a5| a6|    z|  b
+    --------------------------------------------------
+      0|  0|  0|  1|  1|  0|  0|  0|  0|  0|    0|  1
+    --------------------------------------------------
+      0|  1|  0|  0| -1|  1|  0|  0|  0|  0|    0|  0
+    --------------------------------------------------
+      0|  0|  0|  0|  1|  0|  1| -1|  0|  0|    0|  1
+    --------------------------------------------------
+      0|  0|  1|  0| -1|  0|  0|  1|  0|  0|    0|  0
+    --------------------------------------------------
+      1|  0|  0|  0|  1|  0|  0| -1|  1|  0|    0|  1
+    --------------------------------------------------
+      1|  0|  0|  0|  1| -1|  0|  0|  0|  1|    0|  1
+    --------------------------------------------------
+     -3|  0|  0|  0| -2|  5|  0|  4|  0|  0|    1|  7
+    --------------------------------------------------
+    |}];
+  Simplex.step dual;
+  Simplex.print dual;
+  [%expect
+    {|
+     x1| x2| x3| x4| a1| a2| a3| a4| a5| a6|    z|  b
+    --------------------------------------------------
+      0|  0|  0|  1|  1|  0|  0|  0|  0|  0|    0|  1
+    --------------------------------------------------
+      0|  1|  0|  0| -1|  1|  0|  0|  0|  0|    0|  0
+    --------------------------------------------------
+      0|  0|  0|  0|  1|  0|  1| -1|  0|  0|    0|  1
+    --------------------------------------------------
+      0|  0|  1|  0| -1|  0|  0|  1|  0|  0|    0|  0
+    --------------------------------------------------
+      1|  0|  0|  0|  1|  0|  0| -1|  1|  0|    0|  1
+    --------------------------------------------------
+      0|  0|  0|  0|  0| -1|  0|  1| -1|  1|    0|  0
+    --------------------------------------------------
+      0|  0|  0|  0|  1|  5|  0|  1|  3|  0|    1| 10
+    --------------------------------------------------
+    |}];
+  print_endline (Printf.sprintf "%b" (Simplex.is_solved dual));
+  [%expect {| true |}];
+  print_endline (Printf.sprintf "min = %d" (Simplex.minimize problem));
+  [%expect {| min = 10 |}]
+;;
+
+let%expect_test "Complex Simplex" =
+  let module Simplex = Solver_Two.Simplex in
+  let problem =
+    parse_equation "[.###.#] (0,1,2,3,4) (0,3,4) (0,1,2,4,5) (1,2) {10,11,11,5,10,5}"
+  in
+  let simplex = Simplex.init problem Minimize in
+  Simplex.print simplex;
+  [%expect
+    {|
+     x1| x2| x3| x4| a1| a2| a3| a4| a5| a6|    z|  b
+    --------------------------------------------------
+      1|  1|  1|  0|  1|  0|  0|  0|  0|  0|    0| 10
+    --------------------------------------------------
+      1|  0|  1|  1|  0|  1|  0|  0|  0|  0|    0| 11
+    --------------------------------------------------
+      1|  0|  1|  1|  0|  0|  1|  0|  0|  0|    0| 11
+    --------------------------------------------------
+      1|  1|  0|  0|  0|  0|  0|  1|  0|  0|    0|  5
+    --------------------------------------------------
+      1|  1|  1|  0|  0|  0|  0|  0|  1|  0|    0| 10
+    --------------------------------------------------
+      0|  0|  1|  0|  0|  0|  0|  0|  0|  1|    0|  5
+    --------------------------------------------------
+      1|  1|  1|  1|  0|  0|  0|  0|  0|  0|    1|  0
+    --------------------------------------------------
+    |}];
+  Simplex.step simplex;
+  Simplex.print simplex;
+  [%expect
+    {|
+     x1| x2| x3| x4| a1| a2| a3| a4| a5| a6|    z|  b
+    --------------------------------------------------
+      1|  1|  1|  0|  1|  0|  0|  0|  0|  0|    0| 10
+    --------------------------------------------------
+      0| -1|  0|  1| -1|  1|  0|  0|  0|  0|    0|  1
+    --------------------------------------------------
+      0| -1|  0|  1| -1|  0|  1|  0|  0|  0|    0|  1
+    --------------------------------------------------
+      0|  0| -1|  0| -1|  0|  0|  1|  0|  0|    0| -5
+    --------------------------------------------------
+      0|  0|  0|  0| -1|  0|  0|  0|  1|  0|    0|  0
+    --------------------------------------------------
+      0|  0|  1|  0|  0|  0|  0|  0|  0|  1|    0|  5
+    --------------------------------------------------
+      0|  0|  0|  1| -1|  0|  0|  0|  0|  0|    1|-10
+    --------------------------------------------------
+    |}];
+  Simplex.step simplex;
+  Simplex.print simplex;
+  [%expect
+    {|
+     x1| x2| x3| x4| a1| a2| a3| a4| a5| a6|    z|  b
+    --------------------------------------------------
+      0|  0|  0|  0|  0|  0|  0|  0|  0|  0|    0|  1
+    --------------------------------------------------
+      0| -1|  0|  1| -1|  1|  0|  0|  0|  0|    0|  0
+    --------------------------------------------------
+      0| -1|  0|  1| -1|  0|  1|  0|  0|  0|    0|  0
+    --------------------------------------------------
+      0|  0| -1|  0| -1|  0|  0|  1|  0|  0|    0|  0
+    --------------------------------------------------
+      0|  0|  0|  0| -1|  0|  0|  0|  1|  0|    0|  0
+    --------------------------------------------------
+      0|  0|  1|  0|  0|  0|  0|  0|  0|  1|    0|  0
+    --------------------------------------------------
+      0|  0|  0|  1| -1|  0|  0|  0|  0|  0|    1|  0
+    --------------------------------------------------
+    |}];
+  Simplex.step simplex;
+  Simplex.print simplex;
+  [%expect.unreachable];
+  Simplex.step simplex;
+  Simplex.print simplex;
+  [%expect.unreachable];
+  Simplex.step simplex;
+  Simplex.print simplex;
+  [%expect.unreachable];
+  Simplex.step simplex;
+  Simplex.print simplex;
+  [%expect.unreachable]
+[@@expect.uncaught_exn
+  {|
+  (* CR expect_test_collector: This test expectation appears to contain a backtrace.
+     This is strongly discouraged as backtraces are fragile.
+     Please change this test to not include a backtrace. *)
+  (Invalid_argument "option is None")
+  Raised at Stdlib.invalid_arg in file "stdlib.ml", line 30, characters 20-45
+  Called from Stdlib__Option.get in file "option.ml" (inlined), line 21, characters 41-69
+  Called from Aoc_2025_10.Solver_Two.Simplex.find_pivot in file "aoc_2025_10.ml", line 295, characters 14-51
+  Called from Aoc_2025_10.Solver_Two.Simplex.step in file "aoc_2025_10.ml", line 345, characters 24-38
+  Called from Aoc_2025_10.(fun) in file "aoc_2025_10.ml", line 910, characters 2-22
+  Called from Ppx_expect_runtime__Test_block.Configured.dump_backtrace in file "runtime/test_block.ml", line 142, characters 10-28
+  |}]
 ;;
