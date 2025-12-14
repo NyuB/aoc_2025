@@ -5,10 +5,6 @@ type leds = string
 module Button = struct
   type t = int array
 
-  let sort_descending_length ts =
-    List.sort (fun a b -> Int.neg @@ Int.compare (Array.length a) (Array.length b)) ts
-  ;;
-
   let flip = function
     | '#' -> '.'
     | '.' -> '#'
