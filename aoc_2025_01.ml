@@ -56,7 +56,7 @@ let solve_part_two lines =
   zeros
 ;;
 
-let%expect_test "_" =
+let%expect_test "rotate" =
   print_endline (Printf.sprintf "%d" (rotate 0 ~by:1));
   print_endline (Printf.sprintf "%d" (rotate 0 ~by:(-1)));
   [%expect
