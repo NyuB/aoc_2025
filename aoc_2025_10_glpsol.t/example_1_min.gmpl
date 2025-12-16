@@ -1,0 +1,22 @@
+# start of program
+# maximizes the value: total
+var x1 integer;
+var x2 integer;
+var x3 integer;
+var x4 integer;
+var x5 integer;
+var x6 integer;
+minimize total: x1+x2+x3+x4+x5+x6;
+s.t. eq_0: x5 + x6 == 3;
+s.t. eq_1: x2 + x6 == 5;
+s.t. eq_2: x3 + x4 + x5 == 4;
+s.t. eq_3: x1 + x2 + x4 == 7;
+s.t. x1_positive: x1 >= 0;
+s.t. x2_positive: x2 >= 0;
+s.t. x3_positive: x3 >= 0;
+s.t. x4_positive: x4 >= 0;
+s.t. x5_positive: x5 >= 0;
+s.t. x6_positive: x6 >= 0;
+solve;
+printf "x1=%d x2=%d x3=%d x4=%d x5=%d x6=%d total=%d\n",x1,x2,x3,x4,x5,x6,total;
+# end of program

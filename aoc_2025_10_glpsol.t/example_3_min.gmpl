@@ -1,0 +1,20 @@
+# start of program
+# minimizes the value: total
+var a integer;
+var b integer;
+var c integer;
+var d integer;
+minimize total: a+b+c+d;
+s.t. eq_0: a + b + c == 10;
+s.t. eq_1: a + c + d == 11;
+s.t. eq_2: a + c + d == 11;
+s.t. eq_3: a + b == 5;
+s.t. eq_4: a + b + c == 10;
+s.t. eq_5: c == 5;
+s.t. a_positive: a >= 0;
+s.t. b_positive: b >= 0;
+s.t. c_positive: c >= 0;
+s.t. d_positive: d >= 0;
+solve;
+printf "a=%d b=%d c=%d d=%d total=%d\n",a,b,c,d,total;
+# end of program
