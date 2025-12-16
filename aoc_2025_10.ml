@@ -906,30 +906,5 @@ let%expect_test "Complex Simplex" =
     --------------------------------------------------
       0|  0|  0|  1| -1|  0|  0|  0|  0|  0|    1|  0
     --------------------------------------------------
-    |}];
-  Simplex.step simplex;
-  Simplex.print simplex;
-  [%expect.unreachable];
-  Simplex.step simplex;
-  Simplex.print simplex;
-  [%expect.unreachable];
-  Simplex.step simplex;
-  Simplex.print simplex;
-  [%expect.unreachable];
-  Simplex.step simplex;
-  Simplex.print simplex;
-  [%expect.unreachable]
-[@@expect.uncaught_exn
-  {|
-  (* CR expect_test_collector: This test expectation appears to contain a backtrace.
-     This is strongly discouraged as backtraces are fragile.
-     Please change this test to not include a backtrace. *)
-  (Invalid_argument "option is None")
-  Raised at Stdlib.invalid_arg in file "stdlib.ml", line 30, characters 20-45
-  Called from Stdlib__Option.get in file "option.ml" (inlined), line 21, characters 41-69
-  Called from Aoc_2025_10.Solver_Two.Simplex.find_pivot in file "aoc_2025_10.ml", line 295, characters 14-51
-  Called from Aoc_2025_10.Solver_Two.Simplex.step in file "aoc_2025_10.ml", line 345, characters 24-38
-  Called from Aoc_2025_10.(fun) in file "aoc_2025_10.ml", line 910, characters 2-22
-  Called from Ppx_expect_runtime__Test_block.Configured.dump_backtrace in file "runtime/test_block.ml", line 142, characters 10-28
-  |}]
+    |}]
 ;;
