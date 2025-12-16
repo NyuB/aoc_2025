@@ -26,7 +26,7 @@ module Button = struct
   ;;
 end
 
-(** Solves part one exploring all states with a dijktsra-like algorithm *)
+(** Solves part one exploring all states with a BFS algorithm *)
 module Solver_One = struct
   type presses = int StringMap.t
 
@@ -36,11 +36,7 @@ module Solver_One = struct
       ; presses : int
       }
 
-    let compare a b =
-      let by_presses = Int.compare a.presses b.presses in
-      if by_presses != 0 then by_presses else String.compare a.leds b.leds
-    ;;
-
+    let compare a b = Int.compare a.presses b.presses
     let node_is t target = String.equal t.leds target
 
     let already_better_sequence item (presses : presses) =
@@ -54,29 +50,38 @@ module Solver_One = struct
     ;;
   end
 
-  module Q = Pqueue.MakeMin (Item)
-
   let rec shortest_flip_sequence
             (neighbours : leds -> leds list)
             (target : leds)
-            (q : Q.t)
+            (current : Item.t list)
             (presses : presses)
     : int
     =
-    let loop = shortest_flip_sequence neighbours target q in
-    let item = Q.pop_min q |> Option.get in
-    if Item.node_is item target
-    then item.presses
-    else if Item.already_better_sequence item presses
-    then loop presses
-    else (
-      let next_presses = Item.update_presses item presses in
-      let adjacents =
-        neighbours item.leds
-        |> List.map (fun n -> Item.{ leds = n; presses = item.presses + 1 })
-      in
-      Q.add_iter q List.iter adjacents;
-      loop next_presses)
+    if current = []
+    then failwith "Unsolvable"
+    else
+      let exception Return of int in
+      try
+        let next, next_presses =
+          List.fold_left
+            (fun (next, next_presses) item ->
+               if Item.node_is item target
+               then raise (Return item.presses)
+               else if Item.already_better_sequence item next_presses
+               then next, next_presses
+               else (
+                 let next_presses = Item.update_presses item next_presses in
+                 let adjacents =
+                   neighbours item.leds
+                   |> List.map (fun n -> Item.{ leds = n; presses = item.presses + 1 })
+                 in
+                 List.rev_append adjacents next, next_presses))
+            ([], presses)
+            current
+        in
+        shortest_flip_sequence neighbours target next next_presses
+      with
+      | Return n -> n
   ;;
 
   let neighbours (buttons : Button.t list) state =
@@ -85,9 +90,9 @@ module Solver_One = struct
 
   let solve target buttons =
     let start = String.init (String.length target) (Fun.const '.') in
-    let q = Q.of_list [ Item.{ leds = start; presses = 0 } ] in
+    let start = [ Item.{ leds = start; presses = 0 } ] in
     let presses = StringMap.empty in
-    shortest_flip_sequence (neighbours buttons) target q presses
+    shortest_flip_sequence (neighbours buttons) target start presses
   ;;
 end
 
