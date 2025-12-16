@@ -277,10 +277,10 @@ Sweeps from the leftmost (lowest 'j') segments
     | (VerticalSegment.{ polarity = Close; _ } as s) :: tail ->
       let next_areas, next_opened =
         List.fold_left
-          (fun (new_areas, next_opened) opened ->
+          (fun (next_areas, next_opened) opened ->
              match VerticalSegment.close_and_split opened s with
-             | None -> new_areas, opened :: next_opened
-             | Some (area, split) -> area :: new_areas, List.rev_append split next_opened)
+             | None -> next_areas, opened :: next_opened
+             | Some (area, split) -> area :: next_areas, List.rev_append split next_opened)
           ([], [])
           opened
       in

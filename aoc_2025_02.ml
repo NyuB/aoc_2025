@@ -1,4 +1,4 @@
-let is_invalid_id id =
+let is_invalid_id_one id =
   let l = String.length id in
   if l mod 2 != 0
   then false
@@ -51,7 +51,7 @@ let count_invalid_ids is_invalid (left, right) =
 let solve_part_one line =
   String.split_on_char ',' line
   |> List.map parse_id_pair
-  |> List.map (count_invalid_ids is_invalid_id)
+  |> List.map (count_invalid_ids is_invalid_id_one)
   |> Shared.Reduction.AddInt64.reduce_list
 ;;
 
