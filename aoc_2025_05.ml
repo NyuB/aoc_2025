@@ -1,28 +1,25 @@
 module Range : sig
   type t
 
-  val within : t -> int64 -> bool
+  val within : t -> int -> bool
   val parse : string -> t
   val merge : t list -> t list
   val span : t -> Bigint.t
 end = struct
-  type t = int64 * int64
+  type t = int * int
 
-  let span ((low, high) : t) : Bigint.t =
-    Bigint.(of_int64_exn high - of_int64_exn low + one)
-  ;;
-
+  let span ((low, high) : t) : Bigint.t = Bigint.(of_int_exn high - of_int_exn low + one)
   let within ((low, high) : t) i = low <= i && i <= high
 
   let parse line : t =
     match String.split_on_char '-' line with
-    | [ low; high ] -> Int64.of_string low, Int64.of_string high
+    | [ low; high ] -> int_of_string low, int_of_string high
     | _ -> failwith (Printf.sprintf "Invalid range string '%s'" line)
   ;;
 
   let compare (la, ha) (lb, hb) =
-    let low = Int64.compare la lb in
-    if low != 0 then low else Int64.compare ha hb
+    let low = Int.compare la lb in
+    if low != 0 then low else Int.compare ha hb
   ;;
 
   let merge (ranges : t list) : t list =
@@ -32,7 +29,7 @@ end = struct
       | ((la, ha) as a) :: ((lb, hb) as b) :: tail ->
         if ha < lb
         then aux (a :: acc) (b :: tail)
-        else aux acc ((la, Int64.max ha hb) :: tail)
+        else aux acc ((la, Int.max ha hb) :: tail)
     in
     aux [] (List.sort compare ranges)
   ;;
@@ -40,7 +37,7 @@ end
 
 let parse_input lines =
   let rec aux ranges = function
-    | "" :: ingredients -> List.rev ranges, List.map Int64.of_string ingredients
+    | "" :: ingredients -> List.rev ranges, List.map int_of_string ingredients
     | range :: tail -> aux (Range.parse range :: ranges) tail
     | _ -> failwith "Missing ingredients"
   in

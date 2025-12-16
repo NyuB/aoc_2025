@@ -31,7 +31,7 @@ let is_invalid_id_two id =
 
 let parse_id_pair ids =
   match String.split_on_char '-' ids with
-  | [ left; right ] -> Int64.of_string left, Int64.of_string right
+  | [ left; right ] -> int_of_string left, int_of_string right
   | _ -> failwith "Invalid id pair"
 ;;
 
@@ -41,25 +41,25 @@ let count_invalid_ids is_invalid (left, right) =
     then total
     else (
       let next_total =
-        if is_invalid (Int64.to_string current) then Int64.add total current else total
+        if is_invalid (Int.to_string current) then total + current else total
       in
-      aux next_total (Int64.add Int64.one current))
+      aux next_total (current + 1))
   in
-  aux 0L left
+  aux 0 left
 ;;
 
 let solve_part_one line =
   String.split_on_char ',' line
   |> List.map parse_id_pair
   |> List.map (count_invalid_ids is_invalid_id_one)
-  |> Shared.Reduction.AddInt64.reduce_list
+  |> Shared.Reduction.AddInt.reduce_list
 ;;
 
 let solve_part_two line =
   String.split_on_char ',' line
   |> List.map parse_id_pair
   |> List.map (count_invalid_ids is_invalid_id_two)
-  |> Shared.Reduction.AddInt64.reduce_list
+  |> Shared.Reduction.AddInt.reduce_list
 ;;
 
 let example_input =
@@ -73,22 +73,22 @@ let example_input =
 
 let%expect_test "Solution Part One" =
   print_endline
-    (Printf.sprintf "%Ld" (solve_part_one (Shared.read_input_one_line "inputs/02.txt")));
+    (Printf.sprintf "%d" (solve_part_one (Shared.read_input_one_line "inputs/02.txt")));
   [%expect {| 54234399924 |}]
 ;;
 
 let%expect_test "Example Part One" =
-  print_endline (Printf.sprintf "%Ld" (solve_part_one example_input));
+  print_endline (Printf.sprintf "%d" (solve_part_one example_input));
   [%expect {| 1227775554 |}]
 ;;
 
 let%expect_test "Solution Part Two" =
   print_endline
-    (Printf.sprintf "%Ld" (solve_part_two (Shared.read_input_one_line "inputs/02.txt")));
+    (Printf.sprintf "%d" (solve_part_two (Shared.read_input_one_line "inputs/02.txt")));
   [%expect {| 70187097315 |}]
 ;;
 
 let%expect_test "Example Part Two" =
-  print_endline (Printf.sprintf "%Ld" (solve_part_two example_input));
+  print_endline (Printf.sprintf "%d" (solve_part_two example_input));
   [%expect {| 4174379265 |}]
 ;;

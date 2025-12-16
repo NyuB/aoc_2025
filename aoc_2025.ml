@@ -52,10 +52,10 @@ let solve day part input_file =
       (match day, part with
        | 2, One ->
          let res = Aoc_2025_02.solve_part_one (Shared.read_input_one_line input_file) in
-         print_endline (Printf.sprintf "%Ld" res)
+         print_endline (Printf.sprintf "%d" res)
        | 2, Two ->
          let res = Aoc_2025_02.solve_part_two (Shared.read_input_one_line input_file) in
-         print_endline (Printf.sprintf "%Ld" res)
+         print_endline (Printf.sprintf "%d" res)
        | 5, One ->
          let res = Aoc_2025_05.solve_part_one (Shared.read_input_lines input_file) in
          print_endline (Printf.sprintf "%d" res)
