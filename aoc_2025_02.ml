@@ -24,7 +24,7 @@ let is_invalid_id_two id =
     then false
     else (
       let pattern = String.sub id 0 lp in
-      if is_repetition_of ~pattern id then true else aux (lp + 1))
+      is_repetition_of ~pattern id || aux (lp + 1))
   in
   aux 1
 ;;
