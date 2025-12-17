@@ -93,7 +93,8 @@
  (modules aoc_2025_10)
  (inline_tests
   (deps
-   (file inputs/10.txt)))
+   (file inputs/10.txt)
+   %{bin:glpsol}))
  (preprocess
   (pps ppx_expect))
  (libraries shared unix))

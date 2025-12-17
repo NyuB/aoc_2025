@@ -1,0 +1,19 @@
+(rule
+ ;; Build glpsol executable for day 10
+ (targets glpsol)
+ (deps
+  (source_tree build))
+ (action
+  (no-infer
+   (progn
+    (chdir
+     build
+     (run make glpsol-5.0))
+    (copy build/glpsol-5.0 glpsol)))))
+
+(install
+ (section bin)
+ (files glpsol))
+
+(cram
+ (deps %{bin:glpsol}))
